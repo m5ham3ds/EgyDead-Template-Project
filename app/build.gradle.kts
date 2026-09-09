@@ -6,6 +6,10 @@ plugins {
 // 🔴 هذا هو السطر الوحيد الذي تقوم بتغييره عند إنشاء إضافة جديدة
 val siteName = "egydead"
 
+// ✅ تعيين اسم الملف النهائي على مستوى المشروع (هنا خارج android)
+// هذه هي الطريقة الصحيحة في Kotlin DSL
+project.archivesBaseName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension"
+
 android {
     namespace = "com.aistudio.cinestream.xyzabc.extension.egydead"
     compileSdk = 34
@@ -16,9 +20,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        
-        // ✅ هذه هي الطريقة الصحيحة لتغيير اسم ملف APK النهائي
-        archivesBaseName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension"
+        // ❌ لا نضع archivesBaseName هنا
     }
 
     buildTypes {
@@ -39,10 +41,9 @@ android {
         jvmTarget = "17"
     }
 
-    // ❌ تم إزالة كتلة applicationVariants.all بالكامل لأنها تسبب التعارض
+    // ❌ تم إزالة كتلة applicationVariants.all بالكامل
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
-    // لا نضع أي مكتبات واجهات (UI) لأن الإضافة تعمل في الخلفية فقط
 }
