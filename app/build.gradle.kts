@@ -3,12 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// 🔴 هذا هو السطر الوحيد الذي تقوم بتغييره عند إنشاء إضافة جديدة
 val siteName = "egydead"
-
-// ✅ تعيين اسم الملف النهائي على مستوى المشروع (هنا خارج android)
-// هذه هي الطريقة الصحيحة في Kotlin DSL
-project.archivesBaseName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension"
 
 android {
     namespace = "com.aistudio.cinestream.xyzabc.extension.egydead"
@@ -20,7 +15,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        // ❌ لا نضع archivesBaseName هنا
     }
 
     buildTypes {
@@ -40,10 +34,24 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    // ❌ تم إزالة كتلة applicationVariants.all بالكامل
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
+}
+
+// ✅ ✅ ✅ الطريقة السحرية لتغيير اسم الملف النهائي بدون أي تعارض
+tasks.whenTaskAdded {
+    if (name == "assembleRelease") {
+        doLast {
+            val sourceFile = file("build/outputs/apk/release/app-release.apk")
+            val targetFile = file("build/outputs/apk/release/${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk")
+            if (sourceFile.exists()) {
+                sourceFile.renameTo(targetFile)
+                println("✅ تم تغيير اسم الملف إلى: ${targetFile.name}")
+            } else {
+                println("❌ الملف المصدر غير موجود: ${sourceFile.absolutePath}")
+            }
+        }
+    }
 }
