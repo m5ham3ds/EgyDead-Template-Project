@@ -26,24 +26,12 @@ jobs:
         gradle-version: '8.10.2'
         validate-wrappers: false
 
-    - name: Build Release APK
-      run: gradle :app:assembleRelease --stacktrace
-
-    - name: List output files (Debugging)
-      run: |
-        echo "=========================================="
-        echo "🔍 البحث عن جميع ملفات APK في المشروع:"
-        find . -name "*.apk" -type f
-        echo "=========================================="
-        echo "📂 محتويات مجلد release (إن وجد):"
-        ls -la app/build/outputs/apk/release/ || echo "❌ المجلد غير موجود"
-        echo "=========================================="
-        echo "📂 محتويات مجلد outputs (إن وجد):"
-        ls -la app/build/outputs/apk/ || echo "❌ المجلد غير موجود"
+    - name: Build Debug APK
+      run: gradle :app:assembleDebug --stacktrace
 
     - name: Upload Extension APK
       uses: actions/upload-artifact@v4
       with:
-        name: EgyDead-Extension-Release
-        path: app/build/outputs/apk/release/*.apk
+        name: EgyDead-Extension-Debug
+        path: app/build/outputs/apk/debug/app-debug.apk
         if-no-files-found: error
