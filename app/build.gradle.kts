@@ -36,14 +36,13 @@ android {
         jvmTarget = "17"
     }
 
-    // كود ذكي لتغيير اسم ملف APK المخرج ليكون باسم الموقع تلقائياً
+    // ✅ الطريقة الصحيحة لتغيير اسم ملف APK
     applicationVariants.all {
-        val variant = this
-        variant.outputs
-            .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
-            .forEach { output ->
-                output.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
+        outputs.all {
+            if (this is com.android.build.gradle.internal.api.ApkVariantOutputImpl) {
+                this.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
             }
+        }
     }
 }
 
