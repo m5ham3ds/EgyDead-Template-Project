@@ -7,7 +7,6 @@ plugins {
 val siteName = "egydead"
 
 android {
-    // بناء اسم الحزمة الخاص بالإضافة تلقائياً ليكون مستقلاً عن التطبيق الأساسي
     namespace = "com.aistudio.cinestream.xyzabc.extension.egydead"
     compileSdk = 34
 
@@ -42,7 +41,8 @@ android {
         val variant = this
         variant.outputs
             .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
-            output.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
+            .forEach { output ->
+                output.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
             }
     }
 }
