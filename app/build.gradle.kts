@@ -43,7 +43,7 @@ android {
         variant.outputs
             .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
             .forEach { output ->
-                output.outputFileName = "${egydead.capitalize()}-Extension-Release.apk"
+             output.outputFileName = "${siteName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}-Extension-Release.apk"
             }
     }
 }
