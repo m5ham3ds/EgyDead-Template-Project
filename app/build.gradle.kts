@@ -42,8 +42,7 @@ android {
         val variant = this
         variant.outputs
             .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
-            .forEach { output ->
-             output.outputFileName = "${siteName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}-Extension-Release.apk"
+            output.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
             }
     }
 }
