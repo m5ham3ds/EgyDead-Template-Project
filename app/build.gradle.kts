@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// 🔴 هذا هو السطر الوحيد الذي تقوم بتغييره عند إنشاء إضافة جديدة (يجب أن يكون بحروف إنجليزية صغيرة بدون مسافات)
+// 🔴 هذا هو السطر الوحيد الذي تقوم بتغييره عند إنشاء إضافة جديدة
 val siteName = "egydead"
 
 android {
@@ -16,6 +16,9 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        
+        // ✅ هذه هي الطريقة الصحيحة لتغيير اسم ملف APK النهائي
+        archivesBaseName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension"
     }
 
     buildTypes {
@@ -36,17 +39,10 @@ android {
         jvmTarget = "17"
     }
 
-    // ✅ الطريقة الصحيحة لتغيير اسم ملف APK
-    applicationVariants.all {
-        outputs.all {
-            if (this is com.android.build.gradle.internal.api.ApkVariantOutputImpl) {
-                this.outputFileName = "${siteName.substring(0, 1).uppercase() + siteName.substring(1)}-Extension-Release.apk"
-            }
-        }
-    }
+    // ❌ تم إزالة كتلة applicationVariants.all بالكامل لأنها تسبب التعارض
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
-    // لا نضع أي مكتبات واجهات (UI) لأن الإضافة تعمل في الخلفية فقط لتقليل الحجم.
+    // لا نضع أي مكتبات واجهات (UI) لأن الإضافة تعمل في الخلفية فقط
 }
