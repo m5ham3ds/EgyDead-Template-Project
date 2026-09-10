@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.aistudio.cinestream.xyzabc.extension.egydead"
+    namespace = "com.aistudio.cinestream.xyzabc.extensions.egydead"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.aistudio.cinestream.xyzabc.extension.egydead"
+        applicationId = "com.aistudio.cinestream.xyzabc.extensions.egydead"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
