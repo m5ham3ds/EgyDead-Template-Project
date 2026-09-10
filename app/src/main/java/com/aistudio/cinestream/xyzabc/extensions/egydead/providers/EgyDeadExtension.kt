@@ -20,23 +20,13 @@ class EgyDeadExtension : ProviderExtension {
     }
 
     override fun getExtractionScript(isMovie: Boolean, episode: Int, title: String): String {
-        // نمرر المعاملات إلى الجافا سكريبت كمتغيرات عامة
         return """
             (function() {
-                // ========== تعريف المتغيرات المستقبلة من Kotlin ==========
                 window.targetTitle = "$title";
                 window.targetEpisode = $episode;
                 window.isMovie = $isMovie;
 
-                // ========== دالة مساعدة لاستخراج بارامتر من الرابط ==========
-                function getQueryParam(param) {
-                    let urlParams = new URLSearchParams(window.location.search);
-                    return urlParams.get(param);
-                }
-
-                // ========== الخطوة 2: معالجة البحث (باستخدام targetTitle) ==========
                 function handleSearch() {
-                    // لا نعتمد على بارامتر s، بل نستخدم العنوان الذي مررناه مباشرة
                     let searchTitle = window.targetTitle;
                     if (!searchTitle) return false;
 
@@ -47,8 +37,9 @@ class EgyDeadExtension : ProviderExtension {
                             let titleEl = el.querySelector('h1.BottomTitle');
                             if (!titleEl) continue;
                             let titleText = titleEl.innerText.trim();
-                            // مقارنة غير حساسة لحالة الأحرف مع العنوان المستلم
-                            if (titleText.toLowerCase() === searchTitle.toLowerCase()) {
+                            
+                            // تم إصلاح التطابق ليكون بحث جزئي (includes) بدلاً من تطابق تام
+                            if (titleText.toLowerCase().includes(searchTitle.toLowerCase())) {
                                 found = true;
                                 clearInterval(interval);
                                 el.click();
@@ -57,20 +48,15 @@ class EgyDeadExtension : ProviderExtension {
                         }
                     }, 500);
 
-                    setTimeout(function() {
-                        clearInterval(interval);
-                    }, 15000);
-
+                    setTimeout(function() { clearInterval(interval); }, 15000);
                     return true;
                 }
 
-                // ========== الخطوة 3: معالجة صفحة التفاصيل ==========
                 function handleDetails() {
                     if (!document.querySelector('.single-header')) return false;
 
                     let episodeLinks = document.querySelectorAll('.EpsList li a');
 
-                    // إذا كان فيلماً أو لا توجد قائمة حلقات، نضغط زر المشاهدة مباشرة
                     if (window.isMovie || episodeLinks.length === 0) {
                         let watchBtn = document.querySelector('.BtnsGroup .watchNow button');
                         if (watchBtn) {
@@ -79,7 +65,6 @@ class EgyDeadExtension : ProviderExtension {
                         return true;
                     }
 
-                    // إذا كان مسلسلاً ولدينا رقم حلقة، نبحث عنها
                     let targetEp = window.targetEpisode;
                     if (targetEp > 0) {
                         let found = false;
@@ -93,12 +78,10 @@ class EgyDeadExtension : ProviderExtension {
                                 break;
                             }
                         }
-                        // إذا لم نجد الحلقة، نضغط على أول حلقة كحل احتياطي
                         if (!found && episodeLinks.length > 0) {
                             episodeLinks[0].click();
                         }
                     } else {
-                        // إذا لم يحدد رقم حلقة، نضغط أول حلقة
                         if (episodeLinks.length > 0) {
                             episodeLinks[0].click();
                         }
@@ -106,24 +89,36 @@ class EgyDeadExtension : ProviderExtension {
                     return true;
                 }
 
-                // ========== الخطوة 4: معالجة صفحة المشاهدة واستخلاص السيرفرات ==========
                 function handleWatchPage() {
-                    let serverSelector = '.mob-servers ul li';
-                    if (!document.querySelector(serverSelector)) {
-                        serverSelector = '.serversList li';
-                    }
-
                     let serverItems = [];
+                    
                     let interval = setInterval(function() {
-                        let items = document.querySelectorAll(serverSelector);
-                        if (items.length > 0) {
+                        let items = document.querySelectorAll('.mob-servers ul li, .serversList li');
+                        let downloadItems = document.querySelectorAll('.donwload-servers-list li');
+                        
+                        if (items.length > 0 || downloadItems.length > 0) {
                             clearInterval(interval);
+                            
+                            // 1. سحب سيرفرات المشاهدة
                             for (let el of items) {
                                 let nameEl = el.querySelector('span p') || el.querySelector('span');
-                                let name = nameEl ? nameEl.innerText.trim() : 'سيرفر';
+                                let name = nameEl ? nameEl.innerText.trim() : 'سيرفر مشاهدة';
                                 let url = el.getAttribute('data-link');
-                                if (url) {
-                                    serverItems.push({ name: name, url: url });
+                                if (url && url.includes('http')) {
+                                    serverItems.push({ name: name, link: url }); // إصلاح: استخدام link بدلاً من url
+                                }
+                            }
+                            
+                            // 2. سحب سيرفرات التحميل وإضافتها للقائمة
+                            for(let el of downloadItems) {
+                                let nameEl = el.querySelector('.ser-name');
+                                let name = nameEl ? nameEl.innerText.trim() : 'سيرفر تحميل';
+                                let qEl = el.querySelector('.server-info em');
+                                if(qEl) name += ' (' + qEl.innerText.trim() + ')';
+                                
+                                let linkEl = el.querySelector('a.ser-link');
+                                if(linkEl && linkEl.href) {
+                                    serverItems.push({ name: name, link: linkEl.href }); // إصلاح: استخدام link بدلاً من url
                                 }
                             }
 
@@ -145,29 +140,17 @@ class EgyDeadExtension : ProviderExtension {
                     return true;
                 }
 
-                // ========== تنفيذ المنطق حسب نوع الصفحة ==========
-                // 1. هل هي صفحة بحث؟
                 if (document.querySelector('.posts-list') || document.querySelector('.pin-posts-list')) {
-                    handleSearch();
-                    return;
+                    handleSearch(); return;
                 }
-
-                // 2. هل هي صفحة تفاصيل؟
                 if (document.querySelector('.single-header')) {
-                    handleDetails();
-                    return;
+                    handleDetails(); return;
                 }
-
-                // 3. هل هي صفحة مشاهدة؟
                 if (document.querySelector('.mob-servers') || document.querySelector('.serversList') || document.querySelector('.watchAreaMaster')) {
-                    handleWatchPage();
-                    return;
+                    handleWatchPage(); return;
                 }
-
-                // إذا لم تتناسب مع أي نوع
-                if (typeof AndroidBridge !== 'undefined') {
-                    AndroidBridge.sendFailed();
-                }
+                
+                if (typeof AndroidBridge !== 'undefined') { AndroidBridge.sendFailed(); }
             })();
         """.trimIndent()
     }
