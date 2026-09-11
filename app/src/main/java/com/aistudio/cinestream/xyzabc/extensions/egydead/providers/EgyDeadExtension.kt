@@ -6,12 +6,12 @@ import java.net.URLEncoder
 class EgyDeadExtension : ProviderExtension {
     override val id = "egydead"
     override val name = "EgyDead"
-    override val baseUrl = "https://egydead.rest"
+    override val baseUrl = "https://tv10.egydead.live"
     override val isAnime = false
     override val isMovie = true
     override val isSeries = true
     override val lang = "ar"
-    override val iconUrl = "https://egydead.rest/wp-content/themes/egydead/images/logo.png"
+    override val iconUrl = "https://tv10.egydead.live/wp-content/themes/egydead/images/logo.png"
 
     override fun getSearchUrl(titleOriginal: String, titleClean: String): String {
         // نستخدم titleClean الذي يأتي مدمجاً معه سنة الإصدار إن وجدت لضمان دقة البحث
