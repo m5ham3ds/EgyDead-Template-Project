@@ -1,6 +1,7 @@
 package com.aistudio.cinestream.xyzabc.extensions.egydead.providers
 
-import com.example.extensions.ProviderExtension
+import com.aistudio.cinestream.xyzabc.extensions.egydead.ProviderExtension
+import java.net.URLEncoder
 
 class EgyDeadExtension : ProviderExtension {
     override val id = "egydead"
