@@ -25,32 +25,44 @@ class EgyDeadExtension : ProviderExtension {
             (function() {
                 'use strict';
 
-                // The host application may inject the script more than once while a page loads.
-                var pageKey = window.location.href;
-                if (window.__egydeadInjectedPage === pageKey) return;
-                window.__egydeadInjectedPage = pageKey;
+                // The host can inject the provider script more than once while a page loads.
+                var currentPage = window.location.href;
+                if (window.__egydeadPage === currentPage && window.__egydeadRunning) return;
+                window.__egydeadPage = currentPage;
+                window.__egydeadRunning = true;
 
-                var sent = false;
                 var startedAt = Date.now();
                 var challengeStartedAt = 0;
-                var pollTimer = null;
-                var lastActionAt = 0;
+                var lastStatus = '';
+                var lastNavigationAt = 0;
+                var sent = false;
+                var timer = null;
 
                 window.isMovie = $isMovie;
                 window.targetEpisode = $episode;
                 window.searchTitle = "$safeTitle";
 
-                function bridge() {
+                function getBridge() {
                     if (typeof window.AndroidBridge !== 'undefined') return window.AndroidBridge;
                     if (typeof window.Android !== 'undefined') return window.Android;
                     return null;
                 }
 
+                function sendStatus(status) {
+                    if (lastStatus === status) return;
+                    lastStatus = status;
+                    var api = getBridge();
+                    if (api && typeof api.sendBypassStatus === 'function') {
+                        try { api.sendBypassStatus(status); } catch (e) {}
+                    }
+                }
+
                 function sendOnce(items) {
                     if (sent) return;
-                    var api = bridge();
+                    var api = getBridge();
                     if (!api) return;
                     sent = true;
+                    window.__egydeadRunning = false;
                     try {
                         if (items && items.length > 0 && typeof api.sendServersV2 === 'function') {
                             api.sendServersV2(JSON.stringify(items), window.location.href);
@@ -58,7 +70,7 @@ class EgyDeadExtension : ProviderExtension {
                             api.sendFailed();
                         }
                     } catch (e) {
-                        // The host bridge can disappear during navigation; never retry indefinitely.
+                        // Navigation can destroy the bridge. Do not send a second result.
                     }
                 }
 
@@ -86,41 +98,44 @@ class EgyDeadExtension : ProviderExtension {
                     }
                 }
 
-                function isCloudflarePage() {
-                    var text = ((document.title || '') + ' ' + (document.body ? document.body.innerText : '')).toLowerCase();
-                    var url = window.location.href.toLowerCase();
-                    return !!(
-                        document.querySelector('#challenge-running, #challenge-stage, .cf-challenge, .cf-turnstile, [name="cf-turnstile-response"]') ||
-                        document.querySelector('iframe[src*="challenges.cloudflare.com"], iframe[title*="challenge" i]') ||
-                        url.indexOf('/cdn-cgi/challenge-platform/') !== -1 ||
-                        text.indexOf('just a moment') !== -1 ||
-                        text.indexOf('checking your browser') !== -1 ||
-                        text.indexOf('verify you are human') !== -1 ||
-                        text.indexOf('performing security verification') !== -1 ||
-                        text.indexOf('cloudflare') !== -1
+                function isChallengePage() {
+                    var titleText = clean(document.title).toLowerCase();
+                    var bodyText = clean(document.body ? document.body.innerText : '').toLowerCase();
+                    var hasChallengeElement = !!document.querySelector(
+                        '#challenge-running, #challenge-stage, #challenge-form, .cf-turnstile, .cf-turnstile-wrapper, ' +
+                        'iframe[src*="challenges.cloudflare.com"], iframe[title*="challenge" i]'
                     );
+                    var hasChallengeTitle = titleText === 'just a moment...' ||
+                        titleText === 'just a moment' ||
+                        titleText.indexOf('attention required') !== -1;
+                    var hasChallengeText = bodyText.indexOf('checking your browser') !== -1 ||
+                        bodyText.indexOf('verify you are human') !== -1 ||
+                        bodyText.indexOf('performing security verification') !== -1 ||
+                        bodyText.indexOf('يتم التحقق') !== -1 ||
+                        bodyText.indexOf('تحقق من أنك لست روبوت') !== -1;
+                    return hasChallengeElement || hasChallengeTitle || hasChallengeText;
                 }
 
-                function challengeTimedOut() {
+                function challengeExpired() {
                     if (!challengeStartedAt) challengeStartedAt = Date.now();
-                    return Date.now() - challengeStartedAt > 60000;
+                    return Date.now() - challengeStartedAt >= 90000;
                 }
 
-                function hasSearchPage() {
+                function searchPageReady() {
                     return !!document.querySelector('.posts-list, .pin-posts-list, a.post-item');
                 }
 
-                function hasDetailsPage() {
+                function detailsPageReady() {
                     return !!document.querySelector('.single-header, .EpsList, .BtnsGroup, .watchNow');
                 }
 
-                function hasWatchPage() {
-                    return !!document.querySelector('.mob-servers, .serversList, .watchAreaMaster, .donwload-servers-list');
+                function watchPageReady() {
+                    return !!document.querySelector('.mob-servers, .serversList, .watchAreaMaster, .donwload-servers-list, .download-servers-list');
                 }
 
-                function findBestSearchLink() {
+                function findSearchResult() {
                     var items = document.querySelectorAll('.posts-list a.postBox, .pin-posts-list a.postBox, a.post-item');
-                    if (!items || items.length === 0) return null;
+                    if (!items.length) return null;
 
                     var wanted = normalize(window.searchTitle).split(/\\s+/).filter(function(part) {
                         return part.length > 1;
@@ -129,17 +144,17 @@ class EgyDeadExtension : ProviderExtension {
                     var bestScore = -1;
 
                     for (var i = 0; i < items.length; i++) {
-                        var el = items[i];
-                        var titleEl = el.querySelector('h1.BottomTitle, .post-title, h2, h3');
-                        var titleText = normalize(titleEl ? (titleEl.innerText || titleEl.textContent) : el.innerText);
+                        var item = items[i];
+                        var titleEl = item.querySelector('h1.BottomTitle, .post-title, h2, h3');
+                        var text = normalize(titleEl ? (titleEl.innerText || titleEl.textContent) : item.innerText);
                         var score = 0;
                         for (var j = 0; j < wanted.length; j++) {
-                            if (titleText.indexOf(wanted[j]) !== -1) score++;
+                            if (text.indexOf(wanted[j]) !== -1) score++;
                         }
                         score -= i * 0.01;
                         if (score > bestScore) {
                             bestScore = score;
-                            best = el;
+                            best = item;
                         }
                     }
 
@@ -147,18 +162,22 @@ class EgyDeadExtension : ProviderExtension {
                     return absoluteUrl(best.href || best.getAttribute('href'));
                 }
 
-                function handleSearch() {
-                    var link = findBestSearchLink();
-                    if (link) {
-                        if (Date.now() - lastActionAt < 1000) return;
-                        lastActionAt = Date.now();
-                        window.location.href = link;
-                        return;
-                    }
-                    if (Date.now() - startedAt > 20000) sendOnce([]);
+                function navigateOnce(url) {
+                    if (!url || Date.now() - lastNavigationAt < 1200) return;
+                    lastNavigationAt = Date.now();
+                    window.location.href = url;
                 }
 
-                function episodeNumber(text) {
+                function handleSearch() {
+                    var result = findSearchResult();
+                    if (result) {
+                        navigateOnce(result);
+                    } else if (Date.now() - startedAt >= 30000) {
+                        sendOnce([]);
+                    }
+                }
+
+                function parseEpisode(text) {
                     var match = String(text || '').match(/(?:episode|ep|الحلقة|حلقة|e)?\\s*0*(\\d+)/i);
                     return match ? parseInt(match[1], 10) : null;
                 }
@@ -169,99 +188,115 @@ class EgyDeadExtension : ProviderExtension {
 
                     if (!window.isMovie && window.targetEpisode > 0) {
                         for (var i = 0; i < links.length; i++) {
-                            if (episodeNumber(links[i].innerText) === window.targetEpisode) {
+                            if (parseEpisode(links[i].innerText) === window.targetEpisode) {
                                 selected = links[i];
                                 break;
                             }
                         }
                     }
-                    if (!selected && links.length > 0 && !window.isMovie) selected = links[0];
 
+                    if (!selected && !window.isMovie && links.length > 0) selected = links[0];
                     if (!selected || window.isMovie) {
-                        selected = document.querySelector('.BtnsGroup .watchNow a, .BtnsGroup .watchNow button, .watchNow a, .watchNow button');
+                        selected = document.querySelector(
+                            '.BtnsGroup .watchNow a, .BtnsGroup .watchNow button, .watchNow a, .watchNow button'
+                        );
                     }
 
-                    if (selected && Date.now() - lastActionAt > 1000) {
-                        lastActionAt = Date.now();
+                    if (selected) {
                         var href = absoluteUrl(selected.href || selected.getAttribute('href'));
-                        if (href) window.location.href = href;
-                        else if (typeof selected.click === 'function') selected.click();
-                        return;
+                        if (href) navigateOnce(href);
+                        else if (typeof selected.click === 'function' && Date.now() - lastNavigationAt >= 1200) {
+                            lastNavigationAt = Date.now();
+                            selected.click();
+                        }
+                    } else if (Date.now() - startedAt >= 30000) {
+                        sendOnce([]);
                     }
-                    if (Date.now() - startedAt > 20000) sendOnce([]);
                 }
 
                 function addServer(list, name, value) {
                     var url = absoluteUrl(value);
                     if (!url) return;
                     for (var i = 0; i < list.length; i++) {
-                        if (list[i].url === url) return;
+                        if (list[i].link === url) return;
                     }
-                    list.push({ name: clean(name) || 'سيرفر', url: url });
+                    list.push({ name: clean(name) || 'سيرفر', link: url });
                 }
 
                 function extractServers() {
                     var result = [];
                     var items = document.querySelectorAll('.mob-servers li, .serversList li');
+
                     for (var i = 0; i < items.length; i++) {
                         var item = items[i];
                         var nameEl = item.querySelector('span p, span, .server-name');
-                        addServer(result, nameEl ? nameEl.innerText : 'سيرفر', item.getAttribute('data-link') || item.getAttribute('data-url'));
+                        var name = nameEl ? nameEl.innerText : item.innerText;
+                        addServer(result, name, item.getAttribute('data-link'));
+                        addServer(result, name, item.getAttribute('data-src'));
+                        addServer(result, name, item.getAttribute('data-server'));
                         var link = item.querySelector('a[href]');
-                        if (link) addServer(result, nameEl ? nameEl.innerText : 'سيرفر', link.href);
+                        if (link) addServer(result, name, link.href);
                     }
 
                     var downloads = document.querySelectorAll('.donwload-servers-list li, .download-servers-list li');
                     for (var j = 0; j < downloads.length; j++) {
-                        var dl = downloads[j];
-                        var name = dl.querySelector('.ser-name');
-                        var quality = dl.querySelector('.server-info em');
-                        var linkEl = dl.querySelector('a.ser-link, a[href]');
-                        if (linkEl) {
-                            var label = name ? name.innerText : 'تحميل';
-                            if (quality) label += ' (' + clean(quality.innerText) + ')';
-                            addServer(result, label, linkEl.href);
+                        var download = downloads[j];
+                        var nameNode = download.querySelector('.ser-name');
+                        var qualityNode = download.querySelector('.server-info em');
+                        var linkNode = download.querySelector('a.ser-link, a[href]');
+                        if (linkNode) {
+                            var label = nameNode ? nameNode.innerText : 'تحميل';
+                            if (qualityNode) label += ' (' + clean(qualityNode.innerText) + ')';
+                            addServer(result, label, linkNode.href);
                         }
                     }
+
                     return result;
                 }
 
                 function handleWatchPage() {
-                    var result = extractServers();
-                    if (result.length > 0) {
-                        sendOnce(result);
-                        return;
+                    var servers = extractServers();
+                    if (servers.length > 0) {
+                        sendOnce(servers);
+                    } else if (Date.now() - startedAt >= 35000) {
+                        sendOnce([]);
                     }
-                    if (Date.now() - startedAt > 25000) sendOnce([]);
                 }
 
                 function tick() {
                     if (sent) return;
 
-                    if (isCloudflarePage()) {
+                    if (isChallengePage()) {
                         if (!challengeStartedAt) challengeStartedAt = Date.now();
-                        if (challengeTimedOut()) sendOnce([]);
+                        sendStatus('CLOUDFLARE');
+                        if (challengeExpired()) sendOnce([]);
                         return;
                     }
-                    challengeStartedAt = 0;
 
-                    if (hasWatchPage()) {
+                    if (challengeStartedAt) {
+                        challengeStartedAt = 0;
+                        sendStatus('NORMAL');
+                    } else if (lastStatus !== 'NORMAL') {
+                        sendStatus('NORMAL');
+                    }
+
+                    if (watchPageReady()) {
                         handleWatchPage();
-                    } else if (hasSearchPage()) {
+                    } else if (searchPageReady()) {
                         handleSearch();
-                    } else if (hasDetailsPage()) {
+                    } else if (detailsPageReady()) {
                         handleDetails();
-                    } else if (Date.now() - startedAt > 25000) {
+                    } else if (Date.now() - startedAt >= 35000) {
                         sendOnce([]);
                     }
                 }
 
-                pollTimer = setInterval(tick, 500);
+                timer = setInterval(tick, 500);
                 tick();
                 setTimeout(function() {
-                    if (pollTimer) clearInterval(pollTimer);
-                    if (!sent && !isCloudflarePage()) sendOnce([]);
-                }, 65000);
+                    if (timer) clearInterval(timer);
+                    if (!sent && !isChallengePage()) sendOnce([]);
+                }, 95000);
             })();
         """.trimIndent()
     }
